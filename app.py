@@ -93,7 +93,7 @@ if st.button("🚀 Buscar e Gerar Relatório"):
                     
                     # 2. Recorta apenas o bloco de Decretos Simples
                     # Parada inteligente: busca palavras em MAIÚSCULO no início da linha
-                    parada = r"\n\s*(?:DECRETOS SIMPLES|SECRETARIA|GABINETE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
+                    parada = r"\n\s*(?:DECRETOS SIMPLES|SECRETARIA|GABINETE DA VICE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
                     padrao = rf"DECRETOS NUMERADOS(.*?)({parada})"
                     
                     blocos = re.findall(padrao, texto_completo, re.DOTALL)
