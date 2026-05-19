@@ -71,7 +71,7 @@ if st.button("🚀 Buscar e Gerar Relatório"):
             # Ordenação Cronológica (do mais antigo para o mais novo)
             lista_diarios = sorted(lista_diarios, key=lambda x: x["date"])
             
-            texto_para_salvar = f"RELATÓRIO DE DECRETOS SIMPLES - SALVADOR\n"
+            texto_para_salvar = f"RELATÓRIO DE DECRETOS NUMERADOS - SALVADOR\n"
             texto_para_salvar += f"PERÍODO: {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}\n"
             texto_para_salvar += f"GERADO EM: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
             texto_para_salvar += "="*60 + "\n\n"
@@ -93,7 +93,7 @@ if st.button("🚀 Buscar e Gerar Relatório"):
                     
                     # 2. Recorta apenas o bloco de Decretos Simples
                     # Parada inteligente: busca palavras em MAIÚSCULO no início da linha
-                    parada = r"\n\s*(?:SECRETARIA|GABINETE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
+                    parada = r"\n\s*(?:DECRETOS SIMPLES|SECRETARIA|GABINETE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
                     padrao = rf"DECRETOS NUMERADOS(.*?)({parada})"
                     
                     blocos = re.findall(padrao, texto_completo, re.DOTALL)
