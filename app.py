@@ -43,7 +43,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
     else:
         # Configura a IA com a senha colada
         genai.configure(api_key=chave_api)
-        modelo_ia = genai.GenerativeModel('gemini-1.5-flash-latest')
+        modelo_ia = genai.GenerativeModel('gemini-pro')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
         str_fim = data_fim.strftime("%Y-%m-%d")
