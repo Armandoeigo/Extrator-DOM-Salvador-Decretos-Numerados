@@ -1,18 +1,23 @@
 import streamlit as st
 import requests
-import re
+import google.generativeai as genai
+import time
 from datetime import datetime, date
 
 # ==========================================
-# 1. INTERFACE DO SITE
+# 1. INTERFACE DO SITE E CONFIGURAÇÃO DA IA
 # ==========================================
-st.set_page_config(page_title="Extrator DOM Salvador 2", page_icon="📑")
+st.set_page_config(page_title="Extrator DOM com IA", page_icon="🤖")
 
-st.title("🔍 Extrator de Decretos Numerados")
-st.write("Selecione o período abaixo para buscar os Decretos Numerados no Diário Oficial de Salvador.")
-st.write("**:red[Atenção: Base de dados disponível desde 06/2012]**")
+st.sidebar.title("⚙️ Configurações da IA")
+st.sidebar.write("Para ler os arquivos complexos, o robô usa a IA do Google Gemini.")
+# A CAIXINHA SEGURA PARA A SENHA FICA AQUI:
+chave_api = st.sidebar.text_input("🔑 Cole sua API Key aqui:", type="password")
+st.sidebar.markdown("[Clique aqui para criar/ver sua API Key grátis](https://aistudio.google.com/)")
 
-# Definindo os limites do calendário (de 2001 até hoje)
+st.title("🤖 Extrator Inteligente: Decretos Numerados")
+st.write("A IA vai ler o Diário Oficial, encontrar os Decretos Numerados e estruturar tabelas e anexos automaticamente.")
+
 data_minima = date(2012, 6, 1)
 data_maxima = date.today()
 
@@ -25,105 +30,108 @@ with col2:
 # ==========================================
 # 2. AÇÃO DO BOTÃO
 # ==========================================
-if st.button("🚀 Buscar e Gerar Relatório"):
+if st.button("🚀 Buscar e Extrair com IA"):
     
-    str_inicio = data_inicio.strftime("%Y-%m-%d")
-    str_fim = data_fim.strftime("%Y-%m-%d")
-    
-    with st.spinner(f"Buscando diários de {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}..."):
+    # Trava de segurança: só roda se a chave foi preenchida
+    if not chave_api:
+        st.error("⚠️ Por favor, cole a sua API Key no menu lateral esquerdo antes de clicar em buscar.")
+    else:
+        # Configura a IA com a senha que você colou no site
+        genai.configure(api_key=chave_api)
+        modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
         
-        url_api = "https://api.queridodiario.ok.org.br/api/gazettes/"
+        str_inicio = data_inicio.strftime("%Y-%m-%d")
+        str_fim = data_fim.strftime("%Y-%m-%d")
         
-        # Paginação: Garante que pegamos todos os diários do período
-        lista_diarios = []
-        offset = 0 
-        
-        while True:
-            parametros = {
-                "territory_ids": "2927408", 
-                "querystring": '"DECRETOS NUMERADOS"',
-                "published_since": str_inicio,
-                "published_until": str_fim,
-                "size": 50,       
-                "offset": offset  
-            }
-
-            try:
-                resposta_api = requests.get(url_api, params=parametros)
-                resposta_api.raise_for_status() 
-                dados = resposta_api.json()
-
-                if "gazettes" in dados and len(dados["gazettes"]) > 0:
-                    lista_diarios.extend(dados["gazettes"])
-                    offset += 50 
-                else:
-                    break 
-                    
-            except Exception as e:
-                st.error(f"Erro de conexão com a API: {e}")
-                break
-
-        # ==========================================
-        # 3. PROCESSAMENTO E ORDENAÇÃO
-        # ==========================================
-        if len(lista_diarios) > 0:
+        with st.spinner("Buscando diários no servidor..."):
+            url_api = "https://api.queridodiario.ok.org.br/api/gazettes/"
+            lista_diarios = []
+            offset = 0 
             
-            # Ordenação Cronológica (do mais antigo para o mais novo)
-            lista_diarios = sorted(lista_diarios, key=lambda x: x["date"])
-            
-            texto_para_salvar = f"RELATÓRIO DE DECRETOS NUMERADOS - SALVADOR\n"
-            texto_para_salvar += f"PERÍODO: {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}\n"
-            texto_para_salvar += f"GERADO EM: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-            texto_para_salvar += "="*60 + "\n\n"
-
-            progresso = st.progress(0)
-            total = len(lista_diarios)
-            
-            for i, diario in enumerate(lista_diarios):
-                data_pub = diario["date"]
-                url_txt = diario["txt_url"]
-                
+            while True:
+                parametros = {
+                    "territory_ids": "2927408", 
+                    "querystring": '"DECRETOS NUMERADOS"',
+                    "published_since": str_inicio,
+                    "published_until": str_fim,
+                    "size": 50,       
+                    "offset": offset  
+                }
                 try:
-                    texto_completo = requests.get(url_txt).text
-                    
-                    # 1. Identifica o número da Edição do DOM
-                    padrao_numero = r"N\s*[º°oO]\s*(\d{1,3}(?:\.\d{3})?|\d+)"
-                    busca_numero = re.search(padrao_numero, texto_completo[:1000], re.IGNORECASE)
-                    numero_dom = busca_numero.group(1) if busca_numero else "Não identificado"
-                    
-                    # 2. Recorta apenas o bloco de Decretos Simples
-                    # Parada inteligente: busca palavras em MAIÚSCULO no início da linha
-                    parada = r"\n\s*(?:DECRETOS SIMPLES|SECRETARIA|GABINETE DA VICE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
-                    padrao = rf"DECRETOS NUMERADOS(.*?)({parada})"
-                    
-                    blocos = re.findall(padrao, texto_completo, re.DOTALL)
-                    
-                    if blocos:
-                        maior_bloco = max(blocos, key=lambda x: len(x[0]))
-                        conteudo = maior_bloco[0].strip()
-                        
-                        # --- FORMATAÇÃO COM A BARRA VERMELHA (OPÇÃO 1) ---
-                        texto_para_salvar += "🟥"*30 + "\n"
-                        texto_para_salvar += f"📅 DATA: {data_pub} | EDIÇÃO Nº: {numero_dom}\n"
-                        texto_para_salvar += "🟥"*30 + "\n\n"
-                        
-                        texto_para_salvar += conteudo + "\n\n"
-                        texto_para_salvar += "\n\n\n" # Espaço extra entre diários
-                except:
-                    pass 
+                    resposta_api = requests.get(url_api, params=parametros)
+                    resposta_api.raise_for_status() 
+                    dados = resposta_api.json()
+                    if "gazettes" in dados and len(dados["gazettes"]) > 0:
+                        lista_diarios.extend(dados["gazettes"])
+                        offset += 50 
+                    else:
+                        break 
+                except Exception as e:
+                    st.error(f"Erro de conexão com o Querido Diário: {e}")
+                    break
+
+            if len(lista_diarios) > 0:
+                lista_diarios = sorted(lista_diarios, key=lambda x: x["date"])
                 
-                progresso.progress((i + 1) / total)
+                texto_para_salvar = f"RELATÓRIO DE DECRETOS NUMERADOS (EXTRAÍDO POR IA)\n"
+                texto_para_salvar += f"PERÍODO: {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}\n"
+                texto_para_salvar += "="*60 + "\n\n"
 
-            st.success(f"✅ Relatório gerado com sucesso! Encontrados {total} diários.")
-            
-            # 4. BOTÃO DE DOWNLOAD
-            nome_arquivo = f"Decretos_Salvador_{str_inicio}_a_{str_fim}.txt"
-            st.download_button(
-                label="📥 Baixar Arquivo .TXT",
-                data=texto_para_salvar,
-                file_name=nome_arquivo,
-                mime="text/plain"
-            )
+                progresso = st.progress(0)
+                total = len(lista_diarios)
+                
+                # ==========================================
+                # 3. A IA ENTRA EM AÇÃO LENDO DIÁRIO POR DIÁRIO
+                # ==========================================
+                st.info("🧠 A IA começou a ler e estruturar os diários. Isso pode levar alguns minutos...")
+                
+                for i, diario in enumerate(lista_diarios):
+                    data_pub = diario["date"]
+                    url_txt = diario["txt_url"]
+                    
+                    try:
+                        # Baixa o texto inteiro e bagunçado
+                        texto_completo = requests.get(url_txt).text
+                        
+                        # O comando mestre que passamos para a IA
+                        prompt = f"""
+                        Você é um especialista em análise de Diários Oficiais.
+                        Abaixo está o texto cru do Diário Oficial do Município de Salvador.
+                        
+                        Sua tarefa:
+                        1. Encontre e extraia EXATAMENTE todo o conteúdo da seção "DECRETOS NUMERADOS".
+                        2. Se houver anexos ou tabelas pertencentes a esses decretos, reorganize o texto em formato de tabela Markdown (para ficar legível).
+                        3. Se houver texto referente a organogramas no anexo, liste os cargos e hierarquias de forma lógica em texto (listas em marcadores).
+                        4. Ignore decretos simples, outras secretarias, ou o resto do diário que não faça parte dos Decretos Numerados.
+                        5. Retorne APENAS o conteúdo extraído. Se não achar "DECRETOS NUMERADOS" (ou se a seção estiver vazia), retorne EXATAMENTE a palavra "NADA".
+                        
+                        Texto do Diário:
+                        {texto_completo}
+                        """
+                        
+                        # A IA pensa e responde
+                        resposta = modelo_ia.generate_content(prompt)
+                        conteudo_inteligente = resposta.text.strip()
+                        
+                        # Se a IA encontrou a seção, salvamos no arquivo
+                        if conteudo_inteligente != "NADA":
+                            texto_para_salvar += "🟥"*30 + "\n"
+                            texto_para_salvar += f"📅 DATA DA PUBLICAÇÃO: {data_pub}\n"
+                            texto_para_salvar += "🟥"*30 + "\n\n"
+                            texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
+                            
+                        # Pequena pausa de segurança para a IA não travar
+                        time.sleep(3)
+                        
+                    except Exception as e:
+                        pass # Pula se houver erro pontual em um diário
+                    
+                    progresso.progress((i + 1) / total)
 
-        else:
-            st.warning("Nenhum diário encontrado para este período.")
+                st.success(f"✅ Análise concluída pela IA! Diários processados: {total}")
+                
+                nome_arquivo = f"Decretos_Numerados_IA_{str_inicio}_a_{str_fim}.txt"
+                st.download_button("📥 Baixar Relatório Estruturado", data=texto_para_salvar, file_name=nome_arquivo, mime="text/plain")
+
+            else:
+                st.warning("Nenhum diário encontrado no período.")
