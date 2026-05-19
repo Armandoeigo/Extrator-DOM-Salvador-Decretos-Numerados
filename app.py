@@ -129,7 +129,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         time.sleep(3)
                         
                     except Exception as e:
-                        pass # Pula se houver erro pontual em um diário
+                        st.error(f"Erro no diário de {data_pub}: {e}")
                     
                     progresso.progress((i + 1) / total)
 
