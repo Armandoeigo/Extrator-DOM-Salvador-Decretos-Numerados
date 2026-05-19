@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import google.generativeai as genai
+import re
 import time
 from datetime import datetime, date
 
@@ -17,11 +18,10 @@ st.sidebar.markdown("[Clique aqui para criar/ver sua API Key grátis](https://ai
 
 st.title("🤖 Extrator Inteligente: Decretos Numerados")
 
-# --- AVISOS ADICIONADOS AQUI ---
+# Avisos visuais da página principal
 st.write("Selecione o período abaixo para buscar os Decretos Numerados no Diário Oficial de Salvador.")
 st.write("**:red[Atenção: Base de dados disponível desde 06/2012]**")
 st.write("*(A IA vai ler o Diário Oficial, extrair o bloco e estruturar tabelas e anexos automaticamente).*")
-# -------------------------------
 
 data_minima = date(2012, 6, 1)
 data_maxima = date.today()
@@ -43,6 +43,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
     else:
         # Configura a IA com a senha colada
         genai.configure(api_key=chave_api)
+        # Usamos o modelo 2.0-flash homologado para a sua conta
         modelo_ia = genai.GenerativeModel('gemini-2.0-flash')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
@@ -85,9 +86,6 @@ if st.button("🚀 Buscar e Extrair com IA"):
                 progresso = st.progress(0)
                 total = len(lista_diarios)
                 
-                # ==========================================
-                # 3. A IA ENTRA EM AÇÃO LENDO DIÁRIO POR DIÁRIO
-                # ==========================================
                 st.info("🧠 A IA começou a ler e estruturar os diários. Isso pode levar alguns minutos...")
                 
                 for i, diario in enumerate(lista_diarios):
@@ -95,40 +93,68 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     url_txt = diario["txt_url"]
                     
                     try:
-                        # Baixa o texto inteiro e bagunçado
+                        # 1. Baixa o texto completo do diário
                         texto_completo = requests.get(url_txt).text
                         
-                        # O comando mestre que passamos para a IA
-                        prompt = f"""
-                        Você é um especialista em análise de Diários Oficiais.
-                        Abaixo está o texto cru do Diário Oficial do Município de Salvador.
+                        # 2. CORTE DINÂMICO: Localiza o bloco exato da seção
+                        match_inicio = re.search(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE)
+                        if not match_inicio:
+                            continue # Pula se não houver a seção neste diário
+                            
+                        inicio_idx = match_inicio.start()
                         
-                        Sua tarefa:
-                        1. Encontre e extraia EXATAMENTE todo o conteúdo da seção "DECRETOS NUMERADOS".
-                        2. Se houver anexos ou tabelas pertencentes a esses decretos, reorganize o texto em formato de tabela Markdown (para ficar legível).
-                        3. Se houver texto referente a organogramas no anexo, liste os cargos e hierarquias de forma lógica em texto (listas em marcadores).
-                        4. Ignore decretos simples, outras secretarias, ou o resto do diário que não faça parte dos Decretos Numerados.
-                        5. Retorne APENAS o conteúdo extraído. Se não achar "DECRETOS NUMERADOS" (ou se a seção estiver vazia), retorne EXATAMENTE a palavra "NADA".
+                        # Definição do fim do bloco (adicionado 'CONTRATOS' conforme solicitado)
+                        match_fim = re.search(r"\n\s*(?:CONTRATOS|LICITAÇÕES|EDITAIS|CONCURSOS|ATOS DAS SECRETARIAS)\b", texto_completo[inicio_idx:], re.IGNORECASE)
                         
-                        Texto do Diário:
-                        {texto_completo}
-                        """
+                        if match_fim:
+                            texto_secao = texto_completo[inicio_idx : inicio_idx + match_fim.start()]
+                        else:
+                            # Caso não encontre um limitador claro, extrai até o final por segurança
+                            texto_secao = texto_completo[inicio_idx:]
                         
-                        # A IA pensa e responde
-                        resposta = modelo_ia.generate_content(prompt)
-                        conteudo_inteligente = resposta.text.strip()
+                        # 3. FATIAMENTO INTELIGENTE (CHUNK LOGIC):
+                        # Divide o bloco em pedaços de 100 mil caracteres para evitar o erro 429 de cota do Google
+                        tamanho_fatia = 100000
+                        fatias = [texto_secao[k:k+tamanho_fatia] for k in range(0, len(texto_secao), tamanho_fatia)]
                         
-                        # Se a IA encontrou a seção, salvamos no arquivo
-                        if conteudo_inteligente != "NADA":
+                        conteudo_acumulado_diario = ""
+                        
+                        # Envia fatia por fatia para a IA
+                        for idx, fatia_texto in enumerate(fatias):
+                            prompt = f"""
+                            Você é um specialist em análise de Diários Oficiais.
+                            Abaixo está a PARTE {idx + 1} de um trecho do Diário Oficial de Salvador contendo leis do executivo.
+                            
+                            Sua tarefa:
+                            1. Extraia o conteúdo desta fatia que pertença à seção "DECRETOS NUMERADOS" ou seus anexos.
+                            2. Se houver tabelas nesta fatia, reorganize-as perfeitamente em formato Markdown (usando barras |).
+                            3. Se houver organogramas, liste as hierarquias de forma lógica usando marcadores (bolinhas).
+                            4. Se esta fatia contiver apenas o final de um decreto anterior, assinaturas ou o início de uma tabela, continue a formatação de onde parou.
+                            5. Ignore decretos simples ou outras seções alheias.
+                            6. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante nesta fatia específica, retorne EXATAMENTE a palavra "NADA".
+                            
+                            Texto da Parte {idx + 1}:
+                            {fatia_texto}
+                            """
+                            
+                            resposta = modelo_ia.generate_content(prompt)
+                            resposta_texto = response.text.strip()
+                            
+                            if resposta_texto != "NADA" and resposta_texto != "":
+                                conteudo_acumulado_diario += resposta_texto + "\n\n"
+                            
+                            # Intervalo de segurança obrigatório para o plano gratuito do Google
+                            time.sleep(5)
+                        
+                        # Se as fatias trouxeram conteúdo válido, consolidamos no relatório
+                        if conteudo_acumulado_diario.strip():
                             texto_para_salvar += "🟥"*30 + "\n"
                             texto_para_salvar += f"📅 DATA DA PUBLICAÇÃO: {data_pub}\n"
                             texto_para_salvar += "🟥"*30 + "\n\n"
-                            texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
-                            
-                        # Pequena pausa de segurança para a API do Google não travar
-                        time.sleep(20)
+                            texto_para_salvar += conteudo_acumulado_diario + "\n\n"
                         
                     except Exception as e:
+                        # Exibe alertas vermelhos detalhados caso ocorra erro em algum dia específico
                         st.error(f"Erro no diário de {data_pub}: {e}")
                     
                     progresso.progress((i + 1) / total)
