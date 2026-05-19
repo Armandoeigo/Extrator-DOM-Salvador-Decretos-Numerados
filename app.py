@@ -126,7 +126,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                             texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
                             
                         # Pequena pausa de segurança para a API do Google não travar
-                        time.sleep(3)
+                        time.sleep(20)
                         
                     except Exception as e:
                         st.error(f"Erro no diário de {data_pub}: {e}")
