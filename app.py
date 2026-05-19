@@ -11,12 +11,17 @@ st.set_page_config(page_title="Extrator DOM com IA", page_icon="🤖")
 
 st.sidebar.title("⚙️ Configurações da IA")
 st.sidebar.write("Para ler os arquivos complexos, o robô usa a IA do Google Gemini.")
-# A CAIXINHA SEGURA PARA A SENHA FICA AQUI:
+# Caixinha segura para a senha no menu lateral:
 chave_api = st.sidebar.text_input("🔑 Cole sua API Key aqui:", type="password")
 st.sidebar.markdown("[Clique aqui para criar/ver sua API Key grátis](https://aistudio.google.com/)")
 
 st.title("🤖 Extrator Inteligente: Decretos Numerados")
-st.write("A IA vai ler o Diário Oficial, encontrar os Decretos Numerados e estruturar tabelas e anexos automaticamente.")
+
+# --- AVISOS ADICIONADOS AQUI ---
+st.write("Selecione o período abaixo para buscar os Decretos Numerados no Diário Oficial de Salvador.")
+st.write("**:red[Atenção: Base de dados disponível desde 06/2012]**")
+st.write("*(A IA vai ler o Diário Oficial, extrair o bloco e estruturar tabelas e anexos automaticamente).*")
+# -------------------------------
 
 data_minima = date(2012, 6, 1)
 data_maxima = date.today()
@@ -36,7 +41,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
     if not chave_api:
         st.error("⚠️ Por favor, cole a sua API Key no menu lateral esquerdo antes de clicar em buscar.")
     else:
-        # Configura a IA com a senha que você colou no site
+        # Configura a IA com a senha colada
         genai.configure(api_key=chave_api)
         modelo_ia = genai.GenerativeModel('gemini-1.5-flash')
         
@@ -120,7 +125,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                             texto_para_salvar += "🟥"*30 + "\n\n"
                             texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
                             
-                        # Pequena pausa de segurança para a IA não travar
+                        # Pequena pausa de segurança para a API do Google não travar
                         time.sleep(3)
                         
                     except Exception as e:
@@ -130,8 +135,14 @@ if st.button("🚀 Buscar e Extrair com IA"):
 
                 st.success(f"✅ Análise concluída pela IA! Diários processados: {total}")
                 
+                # 4. BOTÃO DE DOWNLOAD
                 nome_arquivo = f"Decretos_Numerados_IA_{str_inicio}_a_{str_fim}.txt"
-                st.download_button("📥 Baixar Relatório Estruturado", data=texto_para_salvar, file_name=nome_arquivo, mime="text/plain")
+                st.download_button(
+                    label="📥 Baixar Relatório Estruturado", 
+                    data=texto_para_salvar, 
+                    file_name=nome_arquivo,
+                    mime="text/plain"
+                )
 
             else:
                 st.warning("Nenhum diário encontrado no período.")
