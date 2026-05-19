@@ -12,13 +12,11 @@ st.set_page_config(page_title="Extrator DOM com IA", page_icon="🤖")
 
 st.sidebar.title("⚙️ Configurações da IA")
 st.sidebar.write("Para ler os arquivos complexos, o robô usa a IA do Google Gemini.")
-# Caixinha segura para a senha no menu lateral:
 chave_api = st.sidebar.text_input("🔑 Cole sua API Key aqui:", type="password")
 st.sidebar.markdown("[Clique aqui para criar/ver sua API Key grátis](https://aistudio.google.com/)")
 
 st.title("🤖 Extrator Inteligente: Decretos Numerados")
 
-# Avisos visuais da página principal
 st.write("Selecione o período abaixo para buscar os Decretos Numerados no Diário Oficial de Salvador.")
 st.write("**:red[Atenção: Base de dados disponível desde 06/2012]**")
 st.write("*(A IA vai ler o Diário Oficial, extrair o bloco e estruturar tabelas e anexos automaticamente).*")
@@ -37,13 +35,11 @@ with col2:
 # ==========================================
 if st.button("🚀 Buscar e Extrair com IA"):
     
-    # Trava de segurança: só roda se a chave foi preenchida
     if not chave_api:
         st.error("⚠️ Por favor, cole a sua API Key no menu lateral esquerdo antes de clicar em buscar.")
     else:
-        # Configura a IA com a senha colada
         genai.configure(api_key=chave_api)
-        # Usamos o modelo 2.0-flash homologado para a sua conta
+        # O modelo 2.0-flash é o único homologado na sua chave
         modelo_ia = genai.GenerativeModel('gemini-2.0-flash')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
@@ -86,7 +82,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                 progresso = st.progress(0)
                 total = len(lista_diarios)
                 
-                st.info("🧠 A IA começou a ler e estruturar os diários. Isso pode levar alguns minutos...")
+                st.info("🧠 A IA começou a ler e estruturar os diários...")
                 
                 for i, diario in enumerate(lista_diarios):
                     data_pub = diario["date"]
@@ -96,65 +92,46 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         # 1. Baixa o texto completo do diário
                         texto_completo = requests.get(url_txt).text
                         
-                        # 2. CORTE DINÂMICO: Localiza o bloco exato da seção
+                        # 2. O CORTE CIRÚRGICO: Localiza os Decretos Numerados
                         match_inicio = re.search(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE)
                         if not match_inicio:
-                            continue # Pula se não houver a seção neste diário
+                            continue 
                             
                         inicio_idx = match_inicio.start()
                         
-                        # Definição do fim do bloco (adicionado 'CONTRATOS' conforme solicitado)
-                        match_fim = re.search(r"\n\s*(?:CONTRATOS|LICITAÇÕES|EDITAIS|CONCURSOS|ATOS DAS SECRETARIAS)\b", texto_completo[inicio_idx:], re.IGNORECASE)
+                        # Recorta uma janela segura de texto a partir dali (evita estourar a cota da API)
+                        texto_secao = texto_completo[inicio_idx : inicio_idx + 150000]
                         
-                        if match_fim:
-                            texto_secao = texto_completo[inicio_idx : inicio_idx + match_fim.start()]
-                        else:
-                            # Caso não encontre um limitador claro, extrai até o final por segurança
-                            texto_secao = texto_completo[inicio_idx:]
+                        # 3. Comando enviado para a IA (Uma única requisição leve por diário)
+                        prompt = f"""
+                        Você é um especialista em análise de Diários Oficiais.
+                        Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
                         
-                        # 3. FATIAMENTO INTELIGENTE (CHUNK LOGIC):
-                        # Divide o bloco em pedaços de 100 mil caracteres para evitar o erro 429 de cota do Google
-                        tamanho_fatia = 100000
-                        fatias = [texto_secao[k:k+tamanho_fatia] for k in range(0, len(texto_secao), tamanho_fatia)]
+                        Sua tarefa:
+                        1. Encontre e extraia todo o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto abaixo.
+                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como CONTRATOS, LICITAÇÕES ou EDITAlS).
+                        3. Se houver tabelas, reorganize-as perfeitamente em formato Markdown (usando barras |).
+                        4. Se houver organogramas, liste as hierarquias de forma lógica usando marcadores (bolinhas).
+                        5. Ignore decretos simples ou seções de outros órgãos.
+                        6. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
                         
-                        conteudo_acumulado_diario = ""
+                        Texto para análise:
+                        {texto_secao}
+                        """
                         
-                        # Envia fatia por fatia para a IA
-                        for idx, fatia_texto in enumerate(fatias):
-                            prompt = f"""
-                            Você é um specialist em análise de Diários Oficiais.
-                            Abaixo está a PARTE {idx + 1} de um trecho do Diário Oficial de Salvador contendo leis do executivo.
-                            
-                            Sua tarefa:
-                            1. Extraia o conteúdo desta fatia que pertença à seção "DECRETOS NUMERADOS" ou seus anexos.
-                            2. Se houver tabelas nesta fatia, reorganize-as perfeitamente em formato Markdown (usando barras |).
-                            3. Se houver organogramas, liste as hierarquias de forma lógica usando marcadores (bolinhas).
-                            4. Se esta fatia contiver apenas o final de um decreto anterior, assinaturas ou o início de uma tabela, continue a formatação de onde parou.
-                            5. Ignore decretos simples ou outras seções alheias.
-                            6. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante nesta fatia específica, retorne EXATAMENTE a palavra "NADA".
-                            
-                            Texto da Parte {idx + 1}:
-                            {fatia_texto}
-                            """
-                            
-                            resposta = modelo_ia.generate_content(prompt)
-                            resposta_texto = response.text.strip()
-                            
-                            if resposta_texto != "NADA" and resposta_texto != "":
-                                conteudo_acumulado_diario += resposta_texto + "\n\n"
-                            
-                            # Intervalo de segurança obrigatório para o plano gratuito do Google
-                            time.sleep(5)
+                        resposta = modelo_ia.generate_content(prompt)
+                        conteudo_inteligente = resposta.text.strip()
                         
-                        # Se as fatias trouxeram conteúdo válido, consolidamos no relatório
-                        if conteudo_acumulado_diario.strip():
+                        if conteudo_inteligente != "NADA" and conteudo_inteligente != "":
                             texto_para_salvar += "🟥"*30 + "\n"
                             texto_para_salvar += f"📅 DATA DA PUBLICAÇÃO: {data_pub}\n"
                             texto_para_salvar += "🟥"*30 + "\n\n"
-                            texto_para_salvar += conteudo_acumulado_diario + "\n\n"
+                            texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
+                        
+                        # Pausa de 6 segundos entre diários para garantir estabilidade na cota por minuto
+                        time.sleep(6)
                         
                     except Exception as e:
-                        # Exibe alertas vermelhos detalhados caso ocorra erro em algum dia específico
                         st.error(f"Erro no diário de {data_pub}: {e}")
                     
                     progresso.progress((i + 1) / total)
