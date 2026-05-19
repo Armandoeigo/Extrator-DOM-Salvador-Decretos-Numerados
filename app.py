@@ -6,10 +6,10 @@ from datetime import datetime, date
 # ==========================================
 # 1. INTERFACE DO SITE
 # ==========================================
-st.set_page_config(page_title="Extrator DOM Salvador", page_icon="📑")
+st.set_page_config(page_title="Extrator DOM Salvador 2", page_icon="📑")
 
-st.title("🔍 Extrator de Decretos Simples")
-st.write("Selecione o período abaixo para buscar os Decretos Simples no Diário Oficial de Salvador.")
+st.title("🔍 Extrator de Decretos Numerados")
+st.write("Selecione o período abaixo para buscar os Decretos Numerados no Diário Oficial de Salvador.")
 st.write("**:red[Atenção: Base de dados disponível desde 06/2012]**")
 
 # Definindo os limites do calendário (de 2001 até hoje)
