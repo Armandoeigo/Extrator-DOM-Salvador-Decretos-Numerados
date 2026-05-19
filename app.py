@@ -41,7 +41,7 @@ if st.button("🚀 Buscar e Gerar Relatório"):
         while True:
             parametros = {
                 "territory_ids": "2927408", 
-                "querystring": '"DECRETOS SIMPLES"',
+                "querystring": '"DECRETOS NUMERADOS"',
                 "published_since": str_inicio,
                 "published_until": str_fim,
                 "size": 50,       
@@ -94,7 +94,7 @@ if st.button("🚀 Buscar e Gerar Relatório"):
                     # 2. Recorta apenas o bloco de Decretos Simples
                     # Parada inteligente: busca palavras em MAIÚSCULO no início da linha
                     parada = r"\n\s*(?:SECRETARIA|GABINETE|PROCURADORIA|CONTROLADORIA|SUPERINTENDÊNCIA|FUNDAÇÃO|LICITAÇÕES|CONSELHO)\b"
-                    padrao = rf"DECRETOS SIMPLES(.*?)({parada})"
+                    padrao = rf"DECRETOS NUMERADOS(.*?)({parada})"
                     
                     blocos = re.findall(padrao, texto_completo, re.DOTALL)
                     
