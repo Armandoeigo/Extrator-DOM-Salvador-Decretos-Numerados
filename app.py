@@ -91,12 +91,13 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     try:
                         texto_completo = requests.get(url_txt).text
                         
-                        # 1. SOLUÇÃO DO NÚMERO DO DOM TURBINADA:
-                        # Busca variações como "Nº 8.543", "N o 8543" ou "Edição 8543" nas primeiras 10.000 letras
-                        match_num = re.search(r"(?:N[oº°]|N[oº°]\.|Edição|Número)\s*[:\-]?\s*([\d\.]+)", texto_completo[:10000], re.IGNORECASE)
+                        # 1. SOLUÇÃO DO NÚMERO DO DOM (Busca Inteligente)
+                        # Procura o bloco "Ano... Nº..." apenas nos primeiros 1500 caracteres (o cabeçalho)
+                        # Isso ignora números de leis e decretos que vêm depois.
+                        match_num = re.search(r"(?:Ano|Diário).*?N[oº°]\s*([\d\.]+)", texto_completo[:1500], re.IGNORECASE | re.DOTALL)
                         num_dom = match_num.group(1).strip() if match_num else "S/N"
                         
-                        # 2. O CORTE CIRÚRGICO (Pula o Sumário)
+                        # 2. O CORTE CIRÚRGICO
                         ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
                         
                         if not ocorrencias:
@@ -104,9 +105,10 @@ if st.button("🚀 Buscar e Extrair com IA"):
                             
                         inicio_idx = ocorrencias[-1].start()
                         
-                        # DOBRAMOS O LIMITE: Agora pega 300.000 caracteres para garantir que o anexo inteiro (e o organograma no final) caia na rede
+                        # 300 mil caracteres para garantir que anexos gigantes e organogramas não sejam cortados
                         texto_secao = texto_completo[inicio_idx : inicio_idx + 300000]
                         
+                        # 3. PROMPT APRIMORADO PARA TABELAS E ORGANOGRAMAS
                         prompt = f"""
                         Você é um especialista em análise de Diários Oficiais.
                         Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
@@ -114,8 +116,10 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         Sua tarefa:
                         1. Encontre e extraia TODO o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto. NÃO RESUMA, extraia os dados completos.
                         2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como DECRETOS FINANCEIROS, CONTRATOS, LICITAÇÕES ou EDITAIS).
-                        3. Se houver tabelas, reorganize-as perfeitamente em formato Markdown (usando barras |).
-                        4. ATENÇÃO AOS ORGANOGRAMAS: Como o texto foi extraído de um PDF, os organogramas perderam as linhas e caixas, aparecendo apenas como palavras ou cargos soltos no final dos anexos. Reconstrua essa hierarquia estrutural listando os cargos e setores em formato de tópicos (bolinhas).
+                        3. TABELAS (MUITO IMPORTANTE): Organize os quadros rigorosamente em formato Markdown (usando barras |).
+                           - Crie colunas totalmente separadas para "Cargos", "Acrescidos" e "Suprimidos".
+                           - NUNCA agrupe valores de acrescidos e suprimidos na mesma célula. Alinhe os valores para facilitar a leitura.
+                        4. ORGANOGRAMAS: O texto foi extraído de um PDF e perdeu a formatação visual. Reconstrua a hierarquia estrutural listando os cargos e setores em formato de tópicos (bolinhas).
                         5. Mantenha os TÍTULOS COMPLETOS dos anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO"). Não traga apenas "ANEXO I".
                         6. Ignore decretos financeiros, decretos simples ou seções de outros órgãos. Você pode ignorar os nomes e CPFs das assinaturas.
                         7. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
