@@ -109,7 +109,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         
                         Sua tarefa:
                         1. Encontre e extraia todo o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto abaixo.
-                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como CONTRATOS, LICITAÇÕES ou EDITAlS).
+                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como CONTRATOS, LICITAÇÕES ou EDITAIS).
                         3. Se houver tabelas, reorganize-as perfeitamente em formato Markdown (usando barras |).
                         4. Se houver organogramas, liste as hierarquias de forma lógica usando marcadores (bolinhas).
                         5. Ignore decretos simples ou seções de outros órgãos.
