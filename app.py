@@ -91,7 +91,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     try:
                         texto_completo = requests.get(url_txt).text
                         
-                        # 1. SOLUÇÃO DEFINITIVA DO DOM: Deixar a IA descobrir o número
+                        # 1. IA LENDO O CABEÇALHO PARA PEGAR O NÚMERO DO DOM
                         prompt_capa = f"""
                         Analise o começo deste Diário Oficial do Município de Salvador e identifique qual é o número da edição.
                         Ignore números de leis, decretos, páginas ou telefones. 
@@ -103,23 +103,26 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         resposta_capa = modelo_ia.generate_content(prompt_capa)
                         num_dom = resposta_capa.text.strip()
                         
-                        # 2. O CORTE DINÂMICO DOS DECRETOS
+                        # 2. O CORTE DINÂMICO (SEM LIMITES DE CARACTERES)
                         ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
                         
                         if not ocorrencias:
                             continue 
                             
+                        # Pega a última vez que a palavra aparece para pular sumários
                         inicio_idx = ocorrencias[-1].start()
                         texto_restante = texto_completo[inicio_idx:]
                         
+                        # O Python vai procurar onde termina a seção do Executivo. Se não achar, vai enviar TUDO até o final do documento.
                         match_fim = re.search(r"\n\s*(?:DECRETOS FINANCEIROS|CONTRATOS|LICITAÇÕES|EDITAIS|ATOS DAS SECRETARIAS|AVISOS)\b", texto_restante, re.IGNORECASE)
                         
                         if match_fim:
                             texto_secao = texto_restante[:match_fim.start()]
                         else:
-                            texto_secao = texto_restante[:450000]
+                            # Removido o limite de 450.000. Ele pega o bloco inteiro do diário até o final se necessário.
+                            texto_secao = texto_restante 
                         
-                        # 3. PROMPT APRIMORADO PARA DECRETOS, TABELAS E ORGANOGRAMAS
+                        # 3. PROMPT APRIMORADO E BLINDADO PARA ESTRUTURAR O TEXTO
                         prompt_decretos = f"""
                         Você é um especialista em análise de Diários Oficiais.
                         Abaixo está a seção completa de "DECRETOS NUMERADOS" de Salvador e seus anexos.
@@ -145,7 +148,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                             texto_para_salvar += "🟥"*30 + "\n\n"
                             texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
                         
-                        # Aumentei um pouco a pausa, pois agora fazemos 2 requisições rápidas por diário
+                        # Pausa de 8 segundos mantém as requisições em ~15 RPM, seguro para o plano grátis
                         time.sleep(8)
                         
                     except Exception as e:
