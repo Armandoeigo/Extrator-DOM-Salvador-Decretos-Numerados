@@ -113,13 +113,13 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         inicio_idx = ocorrencias[-1].start()
                         texto_restante = texto_completo[inicio_idx:]
                         
-                        # O Python vai procurar onde termina a seção do Executivo. Se não achar, vai enviar TUDO até o final do documento.
-                        match_fim = re.search(r"\n\s*(?:DECRETOS FINANCEIROS|CONTRATOS|LICITAÇÕES|EDITAIS|ATOS DAS SECRETARIAS|AVISOS)\b", texto_restante, re.IGNORECASE)
+                        # O Python vai procurar onde termina a seção do Executivo. 
+                        # ADICIONADO "DECRETOS SIMPLES" AQUI PARA BARRAR AS NOMEAÇÕES:
+                        match_fim = re.search(r"\n\s*(?:DECRETOS SIMPLES|DECRETOS FINANCEIROS|CONTRATOS|LICITAÇÕES|EDITAIS|ATOS DAS SECRETARIAS|AVISOS)\b", texto_restante, re.IGNORECASE)
                         
                         if match_fim:
                             texto_secao = texto_restante[:match_fim.start()]
                         else:
-                            # Removido o limite de 450.000. Ele pega o bloco inteiro do diário até o final se necessário.
                             texto_secao = texto_restante 
                         
                         # 3. PROMPT APRIMORADO E BLINDADO PARA ESTRUTURAR O TEXTO
@@ -132,7 +132,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         2. TABELAS: Organize os quadros em Markdown (usando barras |). Crie colunas totalmente separadas para "Cargos", "Acrescidos" e "Suprimidos". NUNCA agrupe valores na mesma célula. Alinhe os valores.
                         3. ORGANOGRAMAS (CRÍTICO): Os organogramas (Estrutura Organizacional) estão localizados nos ANEXOS FINAIS do texto. Você é OBRIGADO a extrair todos os cargos e diretorias presentes nos organogramas e estruturá-los usando marcadores de tópicos (bolinhas). NÃO OMITA O FINAL DO TEXTO.
                         4. TÍTULOS: Mantenha os TÍTULOS COMPLETOS de todos os anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO").
-                        5. Ignore decretos financeiros e assinaturas.
+                        5. Ignore decretos financeiros, decretos simples, nomeações e assinaturas.
                         6. Retorne APENAS o conteúdo extraído, formatado perfeitamente. Se não achar nada, retorne EXATAMENTE "NADA".
                         
                         Texto para análise:
