@@ -40,7 +40,6 @@ if st.button("🚀 Buscar e Extrair com IA"):
     else:
         genai.configure(api_key=chave_api)
         
-        # Usando o modelo Lite (Mais rápido e com limite muito maior)
         modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
@@ -89,36 +88,38 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     data_pub = diario["date"]
                     url_txt = diario["txt_url"]
                     
-                    # Puxando o número do Diário da base de dados do Querido Diário
-                    num_dom = diario.get("edition_number", "S/N")
-                    
                     try:
                         texto_completo = requests.get(url_txt).text
                         
+                        # 1. SOLUÇÃO DO NÚMERO DO DOM:
+                        # Busca no começo do texto (nos primeiros 5.000 caracteres) por padrões como "Diário Oficial do Município Nº 1234" ou "Ano X - Nº 5678"
+                        match_num = re.search(r"N[oº]?\s*[\.\-]?\s*(\d{4,6})", texto_completo[:5000], re.IGNORECASE)
+                        num_dom = match_num.group(1) if match_num else "S/N"
+                        
                         # 2. O CORTE CIRÚRGICO MELHORADO (Pula o Sumário)
-                        # Procura todas as vezes que "DECRETOS NUMERADOS" aparece
                         ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
                         
                         if not ocorrencias:
                             continue 
                             
-                        # Pega a ÚLTIMA ocorrência para garantir que pulou o índice/sumário
+                        # Pega a ÚLTIMA ocorrência
                         inicio_idx = ocorrencias[-1].start()
                         
-                        # Recorta 150 mil caracteres começando da seção real
                         texto_secao = texto_completo[inicio_idx : inicio_idx + 150000]
                         
+                        # 3. SOLUÇÃO DOS ORGANOGRAMAS E TÍTULOS DOS ANEXOS: Prompt reescrito
                         prompt = f"""
                         Você é um especialista em análise de Diários Oficiais.
                         Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
                         
                         Sua tarefa:
-                        1. Encontre e extraia todo o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto abaixo.
-                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como CONTRATOS, LICITAÇÕES ou EDITAIS).
+                        1. Encontre e extraia TODO o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto. NÃO RESUMA, extraia os dados completos.
+                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como DECRETOS FINANCEIROS, CONTRATOS, LICITAÇÕES ou EDITAIS).
                         3. Se houver tabelas, reorganize-as perfeitamente em formato Markdown (usando barras |).
-                        4. Se houver organogramas, liste as hierarquias de forma lógica usando marcadores (bolinhas).
-                        5. Ignore decretos simples ou seções de outros órgãos.
-                        6. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
+                        4. É OBRIGATÓRIO listar todos os cargos presentes nos organogramas, utilizando marcadores (bolinhas) para demonstrar a hierarquia de forma lógica.
+                        5. Mantenha os TÍTULOS COMPLETOS dos anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO"). Não traga apenas "ANEXO I".
+                        6. Ignore decretos financeiros, decretos simples ou seções de outros órgãos. Você pode ignorar os nomes e CPFs das assinaturas.
+                        7. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
                         
                         Texto para análise:
                         {texto_secao}
