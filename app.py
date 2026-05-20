@@ -40,7 +40,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
     else:
         genai.configure(api_key=chave_api)
         # O modelo 2.0-flash é o único homologado na sua chave
-        modelo_ia = genai.GenerativeModel('gemini-2.0-flash')
+        modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
         str_fim = data_fim.strftime("%Y-%m-%d")
