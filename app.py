@@ -91,23 +91,22 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     try:
                         texto_completo = requests.get(url_txt).text
                         
-                        # 1. SOLUÇÃO DO NÚMERO DO DOM:
-                        # Busca no começo do texto (nos primeiros 5.000 caracteres) por padrões como "Diário Oficial do Município Nº 1234" ou "Ano X - Nº 5678"
-                        match_num = re.search(r"N[oº]?\s*[\.\-]?\s*(\d{4,6})", texto_completo[:5000], re.IGNORECASE)
-                        num_dom = match_num.group(1) if match_num else "S/N"
+                        # 1. SOLUÇÃO DO NÚMERO DO DOM TURBINADA:
+                        # Busca variações como "Nº 8.543", "N o 8543" ou "Edição 8543" nas primeiras 10.000 letras
+                        match_num = re.search(r"(?:N[oº°]|N[oº°]\.|Edição|Número)\s*[:\-]?\s*([\d\.]+)", texto_completo[:10000], re.IGNORECASE)
+                        num_dom = match_num.group(1).strip() if match_num else "S/N"
                         
-                        # 2. O CORTE CIRÚRGICO MELHORADO (Pula o Sumário)
+                        # 2. O CORTE CIRÚRGICO (Pula o Sumário)
                         ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
                         
                         if not ocorrencias:
                             continue 
                             
-                        # Pega a ÚLTIMA ocorrência
                         inicio_idx = ocorrencias[-1].start()
                         
-                        texto_secao = texto_completo[inicio_idx : inicio_idx + 150000]
+                        # DOBRAMOS O LIMITE: Agora pega 300.000 caracteres para garantir que o anexo inteiro (e o organograma no final) caia na rede
+                        texto_secao = texto_completo[inicio_idx : inicio_idx + 300000]
                         
-                        # 3. SOLUÇÃO DOS ORGANOGRAMAS E TÍTULOS DOS ANEXOS: Prompt reescrito
                         prompt = f"""
                         Você é um especialista em análise de Diários Oficiais.
                         Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
@@ -116,7 +115,7 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         1. Encontre e extraia TODO o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto. NÃO RESUMA, extraia os dados completos.
                         2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como DECRETOS FINANCEIROS, CONTRATOS, LICITAÇÕES ou EDITAIS).
                         3. Se houver tabelas, reorganize-as perfeitamente em formato Markdown (usando barras |).
-                        4. É OBRIGATÓRIO listar todos os cargos presentes nos organogramas, utilizando marcadores (bolinhas) para demonstrar a hierarquia de forma lógica.
+                        4. ATENÇÃO AOS ORGANOGRAMAS: Como o texto foi extraído de um PDF, os organogramas perderam as linhas e caixas, aparecendo apenas como palavras ou cargos soltos no final dos anexos. Reconstrua essa hierarquia estrutural listando os cargos e setores em formato de tópicos (bolinhas).
                         5. Mantenha os TÍTULOS COMPLETOS dos anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO"). Não traga apenas "ANEXO I".
                         6. Ignore decretos financeiros, decretos simples ou seções de outros órgãos. Você pode ignorar os nomes e CPFs das assinaturas.
                         7. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
