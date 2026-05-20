@@ -39,7 +39,8 @@ if st.button("🚀 Buscar e Extrair com IA"):
         st.error("⚠️ Por favor, cole a sua API Key no menu lateral esquerdo antes de clicar em buscar.")
     else:
         genai.configure(api_key=chave_api)
-        # O modelo 2.0-flash é o único homologado na sua chave
+        
+        # Usando o modelo Lite (Mais rápido e com limite muito maior)
         modelo_ia = genai.GenerativeModel('gemini-3.1-flash-lite')
         
         str_inicio = data_inicio.strftime("%Y-%m-%d")
@@ -88,21 +89,25 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     data_pub = diario["date"]
                     url_txt = diario["txt_url"]
                     
+                    # Puxando o número do Diário da base de dados do Querido Diário
+                    num_dom = diario.get("edition_number", "S/N")
+                    
                     try:
-                        # 1. Baixa o texto completo do diário
                         texto_completo = requests.get(url_txt).text
                         
-                        # 2. O CORTE CIRÚRGICO: Localiza os Decretos Numerados
-                        match_inicio = re.search(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE)
-                        if not match_inicio:
+                        # 2. O CORTE CIRÚRGICO MELHORADO (Pula o Sumário)
+                        # Procura todas as vezes que "DECRETOS NUMERADOS" aparece
+                        ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
+                        
+                        if not ocorrencias:
                             continue 
                             
-                        inicio_idx = match_inicio.start()
+                        # Pega a ÚLTIMA ocorrência para garantir que pulou o índice/sumário
+                        inicio_idx = ocorrencias[-1].start()
                         
-                        # Recorta uma janela segura de texto a partir dali (evita estourar a cota da API)
+                        # Recorta 150 mil caracteres começando da seção real
                         texto_secao = texto_completo[inicio_idx : inicio_idx + 150000]
                         
-                        # 3. Comando enviado para a IA (Uma única requisição leve por diário)
                         prompt = f"""
                         Você é um especialista em análise de Diários Oficiais.
                         Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
@@ -124,11 +129,10 @@ if st.button("🚀 Buscar e Extrair com IA"):
                         
                         if conteudo_inteligente != "NADA" and conteudo_inteligente != "":
                             texto_para_salvar += "🟥"*30 + "\n"
-                            texto_para_salvar += f"📅 DATA DA PUBLICAÇÃO: {data_pub}\n"
+                            texto_para_salvar += f"📅 DATA DA PUBLICAÇÃO: {data_pub} | 📖 DOM Nº: {num_dom}\n"
                             texto_para_salvar += "🟥"*30 + "\n\n"
                             texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
                         
-                        # Pausa de 6 segundos entre diários para garantir estabilidade na cota por minuto
                         time.sleep(6)
                         
                     except Exception as e:
@@ -138,7 +142,6 @@ if st.button("🚀 Buscar e Extrair com IA"):
 
                 st.success(f"✅ Análise concluída pela IA! Diários processados: {total}")
                 
-                # 4. BOTÃO DE DOWNLOAD
                 nome_arquivo = f"Decretos_Numerados_IA_{str_inicio}_a_{str_fim}.txt"
                 st.download_button(
                     label="📥 Baixar Relatório Estruturado", 
