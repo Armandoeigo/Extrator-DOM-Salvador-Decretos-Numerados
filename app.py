@@ -91,45 +91,53 @@ if st.button("🚀 Buscar e Extrair com IA"):
                     try:
                         texto_completo = requests.get(url_txt).text
                         
-                        # 1. SOLUÇÃO DO NÚMERO DO DOM (Busca Inteligente)
-                        # Procura o bloco "Ano... Nº..." apenas nos primeiros 1500 caracteres (o cabeçalho)
-                        # Isso ignora números de leis e decretos que vêm depois.
-                        match_num = re.search(r"(?:Ano|Diário).*?N[oº°]\s*([\d\.]+)", texto_completo[:1500], re.IGNORECASE | re.DOTALL)
-                        num_dom = match_num.group(1).strip() if match_num else "S/N"
+                        # 1. SOLUÇÃO DEFINITIVA DO DOM: Deixar a IA descobrir o número
+                        prompt_capa = f"""
+                        Analise o começo deste Diário Oficial do Município de Salvador e identifique qual é o número da edição.
+                        Ignore números de leis, decretos, páginas ou telefones. 
+                        Retorne APENAS o número da edição (ex: 8.542). Se não encontrar, retorne S/N.
                         
-                        # 2. O CORTE CIRÚRGICO
+                        Texto da capa:
+                        {texto_completo[:2000]}
+                        """
+                        resposta_capa = modelo_ia.generate_content(prompt_capa)
+                        num_dom = resposta_capa.text.strip()
+                        
+                        # 2. O CORTE DINÂMICO DOS DECRETOS
                         ocorrencias = list(re.finditer(r"DECRETOS\s+NUMERADOS", texto_completo, re.IGNORECASE))
                         
                         if not ocorrencias:
                             continue 
                             
                         inicio_idx = ocorrencias[-1].start()
+                        texto_restante = texto_completo[inicio_idx:]
                         
-                        # 300 mil caracteres para garantir que anexos gigantes e organogramas não sejam cortados
-                        texto_secao = texto_completo[inicio_idx : inicio_idx + 300000]
+                        match_fim = re.search(r"\n\s*(?:DECRETOS FINANCEIROS|CONTRATOS|LICITAÇÕES|EDITAIS|ATOS DAS SECRETARIAS|AVISOS)\b", texto_restante, re.IGNORECASE)
                         
-                        # 3. PROMPT APRIMORADO PARA TABELAS E ORGANOGRAMAS
-                        prompt = f"""
+                        if match_fim:
+                            texto_secao = texto_restante[:match_fim.start()]
+                        else:
+                            texto_secao = texto_restante[:450000]
+                        
+                        # 3. PROMPT APRIMORADO PARA DECRETOS, TABELAS E ORGANOGRAMAS
+                        prompt_decretos = f"""
                         Você é um especialista em análise de Diários Oficiais.
-                        Abaixo está um trecho focado do Diário Oficial de Salvador contendo leis do executivo.
+                        Abaixo está a seção completa de "DECRETOS NUMERADOS" de Salvador e seus anexos.
                         
-                        Sua tarefa:
-                        1. Encontre e extraia TODO o conteúdo da seção "DECRETOS NUMERADOS" e seus anexos presentes no texto. NÃO RESUMA, extraia os dados completos.
-                        2. Pare de extrair assim que notar que o bloco dos decretos e seus anexos acabou (geralmente quando começam seções como DECRETOS FINANCEIROS, CONTRATOS, LICITAÇÕES ou EDITAIS).
-                        3. TABELAS (MUITO IMPORTANTE): Organize os quadros rigorosamente em formato Markdown (usando barras |).
-                           - Crie colunas totalmente separadas para "Cargos", "Acrescidos" e "Suprimidos".
-                           - NUNCA agrupe valores de acrescidos e suprimidos na mesma célula. Alinhe os valores para facilitar a leitura.
-                        4. ORGANOGRAMAS: O texto foi extraído de um PDF e perdeu a formatação visual. Reconstrua a hierarquia estrutural listando os cargos e setores em formato de tópicos (bolinhas).
-                        5. Mantenha os TÍTULOS COMPLETOS dos anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO"). Não traga apenas "ANEXO I".
-                        6. Ignore decretos financeiros, decretos simples ou seções de outros órgãos. Você pode ignorar os nomes e CPFs das assinaturas.
-                        7. Retorne APENAS o conteúdo extraído. Se não houver nada de relevante, retorne EXATAMENTE a palavra "NADA".
+                        Sua tarefa OBRIGATÓRIA:
+                        1. Extraia o conteúdo completo. NÃO RESUMA nada. 
+                        2. TABELAS: Organize os quadros em Markdown (usando barras |). Crie colunas totalmente separadas para "Cargos", "Acrescidos" e "Suprimidos". NUNCA agrupe valores na mesma célula. Alinhe os valores.
+                        3. ORGANOGRAMAS (CRÍTICO): Os organogramas (Estrutura Organizacional) estão localizados nos ANEXOS FINAIS do texto. Você é OBRIGADO a extrair todos os cargos e diretorias presentes nos organogramas e estruturá-los usando marcadores de tópicos (bolinhas). NÃO OMITA O FINAL DO TEXTO.
+                        4. TÍTULOS: Mantenha os TÍTULOS COMPLETOS de todos os anexos (ex: "ANEXO I - QUADRO DE CARGOS EM COMISSÃO DO GABINETE DO PREFEITO").
+                        5. Ignore decretos financeiros e assinaturas.
+                        6. Retorne APENAS o conteúdo extraído, formatado perfeitamente. Se não achar nada, retorne EXATAMENTE "NADA".
                         
                         Texto para análise:
                         {texto_secao}
                         """
                         
-                        resposta = modelo_ia.generate_content(prompt)
-                        conteudo_inteligente = resposta.text.strip()
+                        resposta_decretos = modelo_ia.generate_content(prompt_decretos)
+                        conteudo_inteligente = resposta_decretos.text.strip()
                         
                         if conteudo_inteligente != "NADA" and conteudo_inteligente != "":
                             texto_para_salvar += "🟥"*30 + "\n"
@@ -137,7 +145,8 @@ if st.button("🚀 Buscar e Extrair com IA"):
                             texto_para_salvar += "🟥"*30 + "\n\n"
                             texto_para_salvar += conteudo_inteligente + "\n\n\n\n"
                         
-                        time.sleep(6)
+                        # Aumentei um pouco a pausa, pois agora fazemos 2 requisições rápidas por diário
+                        time.sleep(8)
                         
                     except Exception as e:
                         st.error(f"Erro no diário de {data_pub}: {e}")
